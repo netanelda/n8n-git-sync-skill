@@ -8,8 +8,9 @@ Automated Git version control for n8n workflows. Every time Cursor AI modifies a
 - **Pre-change snapshots**: Before modifying a workflow, the current state is committed — enabling easy rollback
 - **Readable filenames**: Files are named by workflow name (e.g., `email-localization-bridge.json`), not by ID
 - **Detailed commit history**: Every commit includes a title + body explaining what changed and why
-- **Bulk sync**: One command to backup all workflows at once
-- **Auto-generated index**: `n8n-workflows/README.md` with a table of all synced workflows
+- **Auto-generated index**: `n8n-workflows/README.md` with a table of all tracked workflows
+
+Only workflows you actively work on via MCP are tracked — nothing else from your n8n instance is pulled.
 
 ## Install
 
@@ -27,9 +28,10 @@ In any Cursor project, say:
 
 The skill will:
 1. Check for global n8n credentials (or ask you to create them)
-2. Create `sync_n8n.sh` and `sync_all_n8n.sh` in your project
+2. Create `sync_n8n.sh` in your project
 3. Create a Cursor rule that triggers auto-sync after every MCP workflow change
 4. Initialize Git and push to your repo
+5. Ask which workflows you're working on and sync them
 
 From that point on, every workflow change is automatically version-controlled.
 
@@ -51,8 +53,7 @@ A project-level `.env` can override the global one if needed.
 | File | Purpose |
 |------|---------|
 | `SKILL.md` | Cursor skill instructions — guides the AI through setup |
-| `sync_n8n.sh` | Single-workflow sync script (template copied to each project) |
-| `sync_all_n8n.sh` | Bulk sync script for all workflows |
+| `sync_n8n.sh` | Workflow sync script (template copied to each project) |
 | `n8n-git-sync.mdc` | Cursor project rule for auto-sync behavior |
 
 ## Requirements

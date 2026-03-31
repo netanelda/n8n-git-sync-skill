@@ -1,11 +1,13 @@
 ---
 name: n8n-git-sync-setup
-description: Set up automated Git version control for n8n workflows in any Cursor project. Creates sync scripts, Cursor rules, and Git configuration. Use when the user says "set up n8n sync", "add workflow version control", "initialize n8n git sync", "set up workflow backup", or wants to version-control n8n workflows with Git.
+description: Set up automated Git version control for n8n workflows in any Cursor project. Creates sync script, Cursor rule, and Git configuration. Use when the user says "set up n8n sync", "add workflow version control", "initialize n8n git sync", "set up workflow backup", or wants to version-control n8n workflows with Git.
 ---
 
 # n8n Git Sync Setup
 
 Scaffolds an automated Git sync system for n8n workflows in the current project. After setup, every workflow change made via MCP is automatically fetched from the n8n API and committed to Git — no manual steps, no token waste.
+
+Workflows enter Git tracking automatically the first time they are modified via MCP. There is no bulk sync — only workflows actively worked on in this project are tracked.
 
 ## Prerequisites
 
@@ -61,10 +63,9 @@ If not initialized:
 Create the following files in the project root. Read each file from the reference templates below and write them to the project.
 
 **Files to create:**
-1. `sync_n8n.sh` — single workflow sync script (make executable with `chmod +x`)
-2. `sync_all_n8n.sh` — bulk sync script (make executable with `chmod +x`)
-3. `.cursor/rules/n8n-git-sync.mdc` — auto-sync project rule
-4. `.gitignore` — add `.env` and `.DS_Store` if not already present
+1. `sync_n8n.sh` — workflow sync script (make executable with `chmod +x`)
+2. `.cursor/rules/n8n-git-sync.mdc` — auto-sync project rule
+3. `.gitignore` — add `.env` and `.DS_Store` if not already present
 
 Do NOT create a project-level `.env` — the global one at `~/.n8n-sync/.env` is used by default.
 
@@ -72,19 +73,25 @@ Do NOT create a project-level `.env` — the global one at `~/.n8n-sync/.env` is
 
 ```bash
 git add -A
-git commit -m "Set up n8n workflow Git auto-sync" -m "Added sync_n8n.sh, sync_all_n8n.sh, and Cursor auto-sync rule"
+git commit -m "Set up n8n workflow Git auto-sync" -m "Added sync_n8n.sh and Cursor auto-sync rule"
 git push -u origin main
 ```
 
-### Step 5: Optional Bulk Sync
+### Step 5: Sync Existing Workflows (if any)
 
-Ask the user: "Do you want to sync all your existing n8n workflows now?"
+Ask the user: "Which n8n workflows are you working on in this project? Paste the URLs or IDs."
 
-If yes, run `./sync_all_n8n.sh` to create an initial backup of all workflows.
+For each workflow ID, run:
+
+```bash
+./sync_n8n.sh <WORKFLOW_ID> "Initial sync: <workflow-name>" "First backup of this workflow"
+```
+
+From this point on, the Cursor rule handles everything automatically.
 
 ## Reference: sync_n8n.sh
 
-The single-workflow sync script. Accepts `<WORKFLOW_ID> "<TITLE>" ["<BODY>"]`.
+The workflow sync script. Accepts `<WORKFLOW_ID> "<TITLE>" ["<BODY>"]`.
 
 Key features:
 - Loads credentials from project `.env` first, then falls back to `~/.n8n-sync/.env`
@@ -95,12 +102,6 @@ Key features:
 - Pretty-prints JSON for readable Git diffs
 
 Read the reference implementation: [sync_n8n.sh](sync_n8n.sh)
-
-## Reference: sync_all_n8n.sh
-
-The bulk sync script. Fetches ALL workflows from the n8n API and saves them in a single commit.
-
-Read the reference implementation: [sync_all_n8n.sh](sync_all_n8n.sh)
 
 ## Reference: n8n-git-sync.mdc
 
@@ -116,13 +117,8 @@ Read the reference implementation: [n8n-git-sync.mdc](n8n-git-sync.mdc)
 After setup, verify the system works:
 
 ```bash
-# Test that credentials are accessible
 source ~/.n8n-sync/.env && echo "Base URL: $N8N_BASE_URL"
-
-# Test API connectivity
 curl -s -o /dev/null -w "%{http_code}" -H "X-N8N-API-KEY: $N8N_API_KEY" "$N8N_BASE_URL/api/v1/workflows?limit=1"
 ```
 
 Expected: HTTP 200.
-
-If the user has existing workflows, suggest running `./sync_all_n8n.sh` for an initial backup.
