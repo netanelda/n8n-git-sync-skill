@@ -1,0 +1,81 @@
+---
+description: Auto-sync n8n workflows to Git after every MCP modification
+globs:
+alwaysApply: true
+---
+
+# n8n Workflow Git Auto-Sync Rule
+
+## Trigger
+
+This rule applies whenever you interact with n8n workflows via the MCP tools:
+- `n8n_create_workflow`
+- `n8n_update_partial_workflow`
+- `n8n_update_full_workflow`
+
+## Required Behavior
+
+### Step 1: Pre-Change Snapshot (BEFORE modifying)
+
+Before you call any of the MCP tools listed above, you MUST first capture the current state of the workflow — **without asking for user permission**:
+
+1. **Identify the workflow ID** you are about to modify.
+2. **Run the sync script** to snapshot the current state:
+
+```
+./sync_n8n.sh <WORKFLOW_ID> "Snapshot before modifying <workflow-name>" "Pre-change backup before: <brief description of what you are about to do>"
+```
+
+If the script reports "No changes detected", that is fine — it means the local copy is already up to date.
+
+### Step 2: Post-Change Sync (AFTER modifying)
+
+After any **successful** call to one of the MCP tools listed above, you MUST immediately do the following — **without asking for user permission**:
+
+1. **Identify the workflow ID** from the MCP response.
+2. **Compose a commit title** — a concise one-liner describing the change.
+3. **Compose a commit body** — a detailed explanation of what changed and why. This is the main documentation of the change. Be thorough.
+4. **Execute the sync script** in the terminal:
+
+```
+./sync_n8n.sh <WORKFLOW_ID> "<TITLE>" "<BODY>"
+```
+
+## Commit Title Guidelines
+
+- Use imperative mood (e.g., "Add error handler to Slack notification step")
+- Be specific: node added/removed, connection changed, parameter updated, workflow activated/deactivated, etc.
+- Keep it under 72 characters
+- Examples:
+  - `Add webhook trigger for incoming form submissions`
+  - `Connect IF node to error handler branch`
+  - `Update Slack channel parameter to #alerts`
+
+## Commit Body Guidelines
+
+The body is the **detailed changelog** — write it as if explaining to a colleague what you did and why. Include:
+
+- Which nodes were added, removed, or modified (by name and type)
+- Which connections were created or changed
+- What parameters were updated and to what values
+- The reason / intent behind the change
+- Any side effects or things to watch out for
+
+Format as bullet points. Example:
+
+```
+- Added IF node 'Check API Status' to evaluate HTTP response codes
+- Connected true branch (status >= 400) to Slack node posting to #alerts
+- Connected false branch back to 'Process Response' node
+- Increased max retry count from 3 to 5 in the retry loop settings
+- Reason: recurring timeout errors from external API were silently failing
+```
+
+## Important
+
+- Do NOT skip the sync step even if the change seems minor.
+- Do NOT ask the user whether to sync — just do it.
+- If the sync script fails (e.g., API error, git conflict), report the error to the user and suggest a fix.
+- The script handles fetching the full workflow JSON from the n8n API, so you do NOT need to output or paste any workflow JSON into the chat.
+- ALWAYS include a body — even for small changes, describe what and why.
+- The pre-change snapshot is critical for rollback — never skip it.
