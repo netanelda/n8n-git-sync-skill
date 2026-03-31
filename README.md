@@ -1,65 +1,62 @@
-# n8n Git Sync Skill for Cursor
+# n8n Git Sync Skill
 
-Automated Git version control for n8n workflows. Every time Cursor AI modifies a workflow via MCP, the change is fetched from the n8n API and committed to GitHub — with human-readable filenames, detailed commit messages, and pre-change snapshots.
+Automated Git version control for n8n workflows. Works with both **Cursor** and **Claude Code**. Every time the AI modifies a workflow via MCP, the change is fetched from the n8n API and committed to GitHub — with human-readable filenames, detailed commit messages, and pre-change snapshots.
 
-## What It Does
-
-- **Auto-sync**: After every workflow change via MCP, the AI runs a script that fetches the workflow JSON and pushes it to Git
-- **Pre-change snapshots**: Before modifying a workflow, the current state is committed — enabling easy rollback
-- **Readable filenames**: Files are named by workflow name (e.g., `email-localization-bridge.json`), not by ID
-- **Detailed commit history**: Every commit includes a title + body explaining what changed and why
-- **Auto-generated index**: `n8n-workflows/README.md` with a table of all tracked workflows
-
-Only workflows you actively work on via MCP are tracked — nothing else from your n8n instance is pulled.
+Only workflows you actively work on via MCP are tracked.
 
 ## Install
 
-Clone this repo into your Cursor skills directory:
+### For Cursor
 
 ```bash
 git clone https://github.com/netanelda/n8n-git-sync-skill ~/.cursor/skills/n8n-git-sync-setup
 ```
 
-## Usage
+### For Claude Code
 
-In any Cursor project, say:
+```bash
+git clone https://github.com/netanelda/n8n-git-sync-skill ~/.claude/skills/n8n-git-sync-setup
+```
 
-> "Set up n8n sync"
+Then in any project, say: **"Set up n8n sync"**
 
-The skill will:
-1. Check for global n8n credentials (or ask you to create them)
-2. Create `sync_n8n.sh` in your project
-3. Create a Cursor rule that triggers auto-sync after every MCP workflow change
-4. Initialize Git and push to your repo
-5. Ask which workflows you're working on and sync them
+## What Happens During Setup
 
-From that point on, every workflow change is automatically version-controlled.
+1. Checks for global n8n credentials at `~/.n8n-sync/.env` (or asks you to create them)
+2. Creates `sync_n8n.sh` in your project
+3. Creates the appropriate rule file:
+   - Cursor: `.cursor/rules/n8n-git-sync.mdc`
+   - Claude Code: `CLAUDE.md`
+4. Initializes Git and pushes to your repo
+5. Asks which workflows you're working on and syncs them
 
 ## Global Credentials
 
-Credentials are stored once at `~/.n8n-sync/.env` and shared across all projects:
+Set once, used across all projects:
 
-```
+```bash
+mkdir -p ~/.n8n-sync
+cat > ~/.n8n-sync/.env << 'EOF'
 N8N_BASE_URL=https://your-n8n-instance.example.com
 N8N_API_KEY=your-api-key-here
+EOF
 ```
 
 Get your API key from: n8n Settings > API > Create API Key.
-
-A project-level `.env` can override the global one if needed.
 
 ## What's Included
 
 | File | Purpose |
 |------|---------|
-| `SKILL.md` | Cursor skill instructions — guides the AI through setup |
+| `SKILL.md` | Skill instructions (works in both Cursor and Claude Code) |
 | `sync_n8n.sh` | Workflow sync script (template copied to each project) |
-| `n8n-git-sync.mdc` | Cursor project rule for auto-sync behavior |
+| `n8n-git-sync.mdc` | Cursor project rule for auto-sync |
+| `CLAUDE.md` | Claude Code project rule for auto-sync |
 
 ## Requirements
 
 - macOS or Linux
 - `curl` and `jq` (pre-installed on macOS)
 - Git
-- Cursor IDE with n8n MCP configured
+- Cursor or Claude Code with n8n MCP configured
 - n8n instance with API access enabled
