@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 #
-# sync_n8n.sh — Fetch an n8n workflow JSON and commit it to Git.
+# sync_n8n.sh — Fetch an n8n workflow JSON, strip secrets, and commit to Git.
 # Usage: ./sync_n8n.sh <WORKFLOW_ID> "<TITLE>" ["<BODY>"]
-#
-# TITLE: one-line summary (imperative mood, under 72 chars)
-# BODY:  optional detailed description (what changed and why)
 #
 
 set -euo pipefail
@@ -60,15 +57,50 @@ if [ "$HTTP_STATUS" -ne 200 ]; then
   exit 1
 fi
 
+# ── Sanitize: strip credentials and secrets from JSON ──
+# This removes actual credential data while preserving workflow structure.
+# Credentials stay safe in n8n — Git is for tracking structure and logic only.
+SANITIZED_JSON=$(echo "$HTTP_BODY" | jq '
+  # Strip credential values from nodes (replace with type reference only)
+  (.nodes // []) |= [.[] |
+    if .credentials then
+      .credentials = (.credentials | to_entries | map({
+        key: .key,
+        value: { "id": .value.id, "name": .value.name }
+      }) | from_entries)
+    else . end
+  ] |
+  # Remove staticData (can contain tokens, session data)
+  del(.staticData) |
+  # Remove sharedWithProjects (internal permissions)
+  del(.sharedWithProjects) |
+  # Scan all string values and redact anything that looks like a secret
+  walk(
+    if type == "string" then
+      # Redact JWT tokens
+      if test("^eyJ[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}") then "[REDACTED_TOKEN]"
+      # Redact long base64-like strings (likely keys/tokens, 40+ chars)
+      elif test("^[A-Za-z0-9+/=_-]{40,}$") then "[REDACTED_KEY]"
+      # Redact AWS access keys
+      elif test("^AKIA[0-9A-Z]{16}$") then "[REDACTED_AWS_KEY]"
+      # Redact strings starting with sk-, pk-, api_, key_
+      elif test("^(sk-|pk-|api_|key_)[A-Za-z0-9]{20,}") then "[REDACTED_API_KEY]"
+      else .
+      end
+    else .
+    end
+  )
+')
+echo "Sanitized credentials from workflow JSON"
+
 # ── Extract workflow name and build filename ──
 mkdir -p "$WORKFLOWS_DIR"
 
-WORKFLOW_NAME=$(echo "$HTTP_BODY" | jq -r '.name // empty')
+WORKFLOW_NAME=$(echo "$SANITIZED_JSON" | jq -r '.name // empty')
 if [ -z "$WORKFLOW_NAME" ]; then
   echo "Warning: Could not extract workflow name, falling back to ID"
   SANITIZED_NAME="workflow-$WORKFLOW_ID"
 else
-  # Sanitize: lowercase, spaces/underscores to hyphens, strip non-alphanumeric, collapse hyphens
   SANITIZED_NAME=$(echo "$WORKFLOW_NAME" | \
     tr '[:upper:]' '[:lower:]' | \
     sed 's/[_ ]/-/g' | \
@@ -80,7 +112,7 @@ fi
 NEW_FILENAME="${SANITIZED_NAME}.json"
 OUTPUT_FILE="$WORKFLOWS_DIR/$NEW_FILENAME"
 
-# ── Handle renames: check if this workflow ID was previously saved under a different name ──
+# ── Handle renames ──
 if [ -f "$ID_MAP_FILE" ]; then
   OLD_FILENAME=$(jq -r --arg id "$WORKFLOW_ID" '.[$id] // empty' "$ID_MAP_FILE")
 else
@@ -99,8 +131,8 @@ if [ -n "$OLD_FILENAME" ] && [ "$OLD_FILENAME" != "$NEW_FILENAME" ]; then
   fi
 fi
 
-# ── Save pretty-printed JSON ──
-echo "$HTTP_BODY" | jq '.' > "$OUTPUT_FILE"
+# ── Save sanitized, pretty-printed JSON ──
+echo "$SANITIZED_JSON" | jq '.' > "$OUTPUT_FILE"
 echo "Saved to $OUTPUT_FILE"
 
 # ── Update ID map ──
@@ -116,13 +148,14 @@ README_FILE="$WORKFLOWS_DIR/README.md"
 {
   echo "# Synced n8n Workflows"
   echo ""
+  echo "> Credentials are stripped from these files. Secrets remain safe in n8n."
+  echo ""
   echo "| Name | ID | Last Synced | File |"
   echo "|------|----|-------------|------|"
 
   for json_file in "$WORKFLOWS_DIR"/*.json; do
     [ -f "$json_file" ] || continue
     fname=$(basename "$json_file")
-    # Skip the id-map file
     [ "$fname" = ".id-map.json" ] && continue
 
     w_name=$(jq -r '.name // "Unknown"' "$json_file")
@@ -136,7 +169,6 @@ echo "Updated workflow index at $README_FILE"
 # ── Git commit and push ──
 cd "$SCRIPT_DIR"
 git add "$OUTPUT_FILE" "$ID_MAP_FILE" "$README_FILE"
-# Also add any files from rename operations
 for f in "${FILES_TO_ADD[@]+"${FILES_TO_ADD[@]}"}"; do
   git add "$f"
 done
