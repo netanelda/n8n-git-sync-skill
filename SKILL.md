@@ -94,6 +94,7 @@ From this point on, the Cursor rule handles everything automatically.
 The workflow sync script. Accepts `<WORKFLOW_ID> "<TITLE>" ["<BODY>"]`.
 
 Key features:
+- **Credential sanitization**: Strips all secrets from JSON before committing. Credential reference IDs are preserved (safe), but actual API keys, tokens, and session data are redacted. Secrets remain in n8n's encrypted store only.
 - Loads credentials from project `.env` first, then falls back to `~/.n8n-sync/.env`
 - Extracts workflow name from JSON, sanitizes it, uses it as the filename
 - Maintains `n8n-workflows/.id-map.json` to track ID-to-filename mapping
@@ -109,6 +110,7 @@ The Cursor project rule that triggers auto-sync. It instructs the AI to:
 1. Run a pre-change snapshot before modifying any workflow
 2. Run a post-change sync after every successful MCP modification
 3. Write detailed commit messages (title + body) without asking the user
+4. Revert workflows to a previous Git version when asked — using credential IDs preserved in Git to reconnect secrets automatically in n8n
 
 Read the reference implementation: [n8n-git-sync.mdc](n8n-git-sync.mdc)
 

@@ -71,6 +71,68 @@ Format as bullet points. Example:
 - Reason: recurring timeout errors from external API were silently failing
 ```
 
+## Reverting a Workflow to a Previous Version
+
+When the user asks to revert / roll back a workflow, follow these steps:
+
+### Step 1: Identify the target version
+
+Use `git log` on the workflow's JSON file to show the user available versions:
+
+```
+git log --oneline n8n-workflows/<filename>.json
+```
+
+Let the user pick which commit to revert to, or determine it yourself based on their description.
+
+### Step 2: Extract the old version from Git
+
+```
+git show <COMMIT_HASH>:n8n-workflows/<filename>.json > /tmp/revert-payload.json
+```
+
+### Step 3: Push the reverted version to n8n
+
+Build a PUT request from the Git JSON. The credential IDs stored in Git are safe references — n8n automatically reconnects credentials by ID.
+
+```bash
+source ~/.n8n-sync/.env 2>/dev/null || source .env
+
+REVERT_PAYLOAD=$(jq '{
+  name: .name,
+  nodes: .nodes,
+  connections: .connections,
+  settings: { executionOrder: (.settings.executionOrder // "v1") }
+}' /tmp/revert-payload.json)
+
+curl -s -X PUT \
+  -H "X-N8N-API-KEY: $N8N_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "$REVERT_PAYLOAD" \
+  "$N8N_BASE_URL/api/v1/workflows/<WORKFLOW_ID>"
+```
+
+### Step 4: Sync the reverted state
+
+```
+./sync_n8n.sh <WORKFLOW_ID> "Revert <workflow-name> to <commit>" "Rolled back to commit <hash>: <original commit message>"
+```
+
+### How credentials survive the revert
+
+The sync script strips secret values from JSON before saving to Git, but **preserves credential reference IDs** (e.g., `"id": "GUHTT02xy5n3O0JT"`). When you push the JSON back to n8n, it sees these IDs and automatically reconnects to the existing credentials in its encrypted store. No secrets need to be in Git for this to work.
+
+## Credential Sanitization
+
+The `sync_n8n.sh` script automatically strips secrets from workflow JSON before committing:
+
+- Credential values are replaced with safe ID/name references only
+- JWT tokens, AWS keys, and API key patterns are redacted
+- `staticData` (which can contain session tokens) is removed
+- Workflow structure, nodes, connections, and parameters are fully preserved
+
+Secrets remain safe in n8n's encrypted credential store. Git tracks structure and logic only.
+
 ## Important
 
 - Do NOT skip the sync step even if the change seems minor.
