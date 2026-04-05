@@ -9,12 +9,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKFLOWS_DIR="$SCRIPT_DIR/n8n-workflows"
 ID_MAP_FILE="$WORKFLOWS_DIR/.id-map.json"
+SANITIZE_JQ="$SCRIPT_DIR/sanitize_n8n_workflow.jq"
 GLOBAL_ENV="$HOME/.n8n-sync/.env"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 
 # ── Validate arguments ──
 if [ $# -lt 2 ]; then
   echo "Usage: $0 <WORKFLOW_ID> \"<TITLE>\" [\"<BODY>\"]"
+  exit 1
+fi
+
+if [ ! -f "$SANITIZE_JQ" ]; then
+  echo "Error: Missing $SANITIZE_JQ — place it next to sync_n8n.sh"
   exit 1
 fi
 
@@ -58,39 +64,8 @@ if [ "$HTTP_STATUS" -ne 200 ]; then
 fi
 
 # ── Sanitize: strip credentials and secrets from JSON ──
-# This removes actual credential data while preserving workflow structure.
-# Credentials stay safe in n8n — Git is for tracking structure and logic only.
-SANITIZED_JSON=$(echo "$HTTP_BODY" | jq '
-  # Strip credential values from nodes (replace with type reference only)
-  (.nodes // []) |= [.[] |
-    if .credentials then
-      .credentials = (.credentials | to_entries | map({
-        key: .key,
-        value: { "id": .value.id, "name": .value.name }
-      }) | from_entries)
-    else . end
-  ] |
-  # Remove staticData (can contain tokens, session data)
-  del(.staticData) |
-  # Remove sharedWithProjects (internal permissions)
-  del(.sharedWithProjects) |
-  # Scan all string values and redact anything that looks like a secret
-  walk(
-    if type == "string" then
-      # Redact JWT tokens
-      if test("^eyJ[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}") then "[REDACTED_TOKEN]"
-      # Redact long base64-like strings (likely keys/tokens, 40+ chars)
-      elif test("^[A-Za-z0-9+/=_-]{40,}$") then "[REDACTED_KEY]"
-      # Redact AWS access keys
-      elif test("^AKIA[0-9A-Z]{16}$") then "[REDACTED_AWS_KEY]"
-      # Redact strings starting with sk-, pk-, api_, key_
-      elif test("^(sk-|pk-|api_|key_)[A-Za-z0-9]{20,}") then "[REDACTED_API_KEY]"
-      else .
-      end
-    else .
-    end
-  )
-')
+# See sanitize_n8n_workflow.jq: keeps resource IDs (Sheets/Drive/etc.) under known keys.
+SANITIZED_JSON=$(echo "$HTTP_BODY" | jq -f "$SANITIZE_JQ")
 echo "Sanitized credentials from workflow JSON"
 
 # ── Extract workflow name and build filename ──

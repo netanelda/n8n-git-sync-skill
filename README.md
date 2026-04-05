@@ -25,7 +25,7 @@ Then in any project, say: **"Set up n8n sync"**
 ## What Happens During Setup
 
 1. Checks for global n8n credentials at `~/.n8n-sync/.env` (or asks you to create them)
-2. Creates `sync_n8n.sh` in your project (with built-in credential sanitization)
+2. Creates `sync_n8n.sh` and `sanitize_n8n_workflow.jq` in your project (credential + resource-ID sanitization)
 3. Creates the appropriate rule file:
    - Cursor: `.cursor/rules/n8n-git-sync.mdc`
    - Claude Code: `CLAUDE.md`
@@ -34,7 +34,7 @@ Then in any project, say: **"Set up n8n sync"**
 
 ## Key Features
 
-- **Credential sanitization** — API keys, JWT tokens, AWS keys, and secrets are stripped from JSON before committing. Only safe credential reference IDs are kept.
+- **Credential sanitization** — API keys, JWT tokens, AWS keys, and secrets are stripped from JSON before committing. Only safe credential reference IDs are kept. **File and folder IDs** (Google Sheets/Drive, Slack channels, Monday boards, etc.) are preserved — not treated as secrets.
 - **Automatic revert** — Roll back any workflow to a previous Git version. Credential IDs in Git let n8n reconnect secrets automatically.
 - **Pre-change snapshots** — Current state is committed before every modification, so you always have a clean "before" to diff against or revert to.
 - **Human-readable filenames** — Files are named after the workflow (e.g., `email-localization-pipeline.json`), not by ID.
@@ -60,6 +60,7 @@ Get your API key from: n8n Settings > API > Create API Key.
 |------|---------|
 | `SKILL.md` | Skill instructions (works in both Cursor and Claude Code) |
 | `sync_n8n.sh` | Workflow sync script (template copied to each project) |
+| `sanitize_n8n_workflow.jq` | Sanitization rules (must sit next to `sync_n8n.sh`) |
 | `n8n-git-sync.mdc` | Cursor project rule for auto-sync |
 | `CLAUDE.md` | Claude Code project rule for auto-sync |
 

@@ -64,8 +64,9 @@ Create the following files in the project root. Read each file from the referenc
 
 **Files to create:**
 1. `sync_n8n.sh` — workflow sync script (make executable with `chmod +x`)
-2. `.cursor/rules/n8n-git-sync.mdc` — auto-sync project rule
-3. `.gitignore` — add `.env` and `.DS_Store` if not already present
+2. `sanitize_n8n_workflow.jq` — sanitization rules (must sit in the same folder as `sync_n8n.sh`)
+3. `.cursor/rules/n8n-git-sync.mdc` — auto-sync project rule
+4. `.gitignore` — add `.env` and `.DS_Store` if not already present
 
 Do NOT create a project-level `.env` — the global one at `~/.n8n-sync/.env` is used by default.
 
@@ -94,7 +95,7 @@ From this point on, the Cursor rule handles everything automatically.
 The workflow sync script. Accepts `<WORKFLOW_ID> "<TITLE>" ["<BODY>"]`.
 
 Key features:
-- **Credential sanitization**: Strips all secrets from JSON before committing. Credential reference IDs are preserved (safe), but actual API keys, tokens, and session data are redacted. Secrets remain in n8n's encrypted store only.
+- **Credential sanitization**: Strips secrets from JSON before committing. Credential reference IDs are preserved (safe). **Resource IDs** (Google Sheet/Drive file IDs, Slack channel IDs, Monday board IDs, etc.) are kept — they are not secrets. See [sanitize_n8n_workflow.jq](sanitize_n8n_workflow.jq).
 - Loads credentials from project `.env` first, then falls back to `~/.n8n-sync/.env`
 - Extracts workflow name from JSON, sanitizes it, uses it as the filename
 - Maintains `n8n-workflows/.id-map.json` to track ID-to-filename mapping
@@ -102,7 +103,7 @@ Key features:
 - Auto-generates `n8n-workflows/README.md` index after each sync
 - Pretty-prints JSON for readable Git diffs
 
-Read the reference implementation: [sync_n8n.sh](sync_n8n.sh)
+Read the reference implementation: [sync_n8n.sh](sync_n8n.sh), [sanitize_n8n_workflow.jq](sanitize_n8n_workflow.jq)
 
 ## Reference: n8n-git-sync.mdc
 
