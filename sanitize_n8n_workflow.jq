@@ -40,8 +40,16 @@ def is_flat_resource_id_key($p):
 def is_resource_identifier_path($p):
   is_rl_value_path($p) or is_flat_resource_id_key($p);
 
+def is_webhook_path($p):
+  ($p | length) as $len
+  | $len >= 1
+  and ($p[$len - 1] == "path")
+  and (($len >= 2 and $p[$len - 2] == "parameters") or
+       ($len >= 3 and $p[$len - 3] == "parameters"));
+
 def redact_string_at_path($p; $s):
   if is_resource_identifier_path($p) then $s
+  elif is_webhook_path($p) then $s
   elif $s | test("^eyJ[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}") then "[REDACTED_TOKEN]"
   elif $s | test("^AKIA[0-9A-Z]{16}$") then "[REDACTED_AWS_KEY]"
   elif $s | test("^(sk-|pk-|api_|key_)[A-Za-z0-9]{20,}") then "[REDACTED_API_KEY]"
